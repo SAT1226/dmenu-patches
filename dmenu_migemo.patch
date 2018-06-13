@@ -1,0 +1,336 @@
+diff -uprN dmenu-4.8org/config.def.h dmenu-4.8/config.def.h
+--- dmenu-4.8org/config.def.h	2018-03-15 04:26:40.000000000 +0900
++++ dmenu-4.8/config.def.h	2018-06-09 21:12:04.274102168 +0900
+@@ -21,3 +21,6 @@ static unsigned int lines      = 0;
+  * for example: " /?\"&[]"
+  */
+ static const char worddelimiters[] = " ";
++
++/* -migemo-dict option; migemo dictionary */
++static const char *migemo_dict = "/usr/share/migemo/utf-8/migemo-dict";
+diff -uprN dmenu-4.8org/config.mk dmenu-4.8/config.mk
+--- dmenu-4.8org/config.mk	2018-03-15 04:26:40.000000000 +0900
++++ dmenu-4.8/config.mk	2018-05-26 15:50:25.213899701 +0900
+@@ -20,7 +20,7 @@ FREETYPEINC = /usr/include/freetype2
+ 
+ # includes and libs
+ INCS = -I${X11INC} -I${FREETYPEINC}
+-LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS}
++LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS} -lmigemo -lpcre
+ 
+ # flags
+ CPPFLAGS = -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700 -D_POSIX_C_SOURCE=200809L -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
+diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
+--- dmenu-4.8org/dmenu.c	2018-03-15 04:26:40.000000000 +0900
++++ dmenu-4.8/dmenu.c	2018-06-09 21:26:27.914086809 +0900
+@@ -15,6 +15,9 @@
+ #endif
+ #include <X11/Xft/Xft.h>
+ 
++#include <pcre.h>
++#include <migemo.h>
++
+ #include "drw.h"
+ #include "util.h"
+ 
+@@ -52,6 +55,9 @@ static XIC xic;
+ static Drw *drw;
+ static Clr *scheme[SchemeLast];
+ 
++static migemo *mgm;
++static int migemo_mode = 0;
++
+ #include "config.h"
+ 
+ static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
+@@ -209,16 +215,140 @@ grabkeyboard(void)
+ 	die("cannot grab keyboard");
+ }
+ 
++/*
++https://github.com/koron/cmigemo
++  charset.c: utf8_int2char
++  rxgen.c: default_int2char
++
++  Copyright (c) 2003-2007 MURAOKA Taro (KoRoN)
++  Released under the MIT license
++  URL: https://github.com/koron/cmigemo/blob/master/doc/LICENSE_MIT.txt
++
++  UTF8 + PCRE用に改変
++*/
++static int
++utf8pcre_int2char(unsigned int in, unsigned char* out)
++{
++	if (in < 0x80) {
++		int len = 0;
++
++		/* outは最低でも16バイトはある、という仮定を置く */
++		switch (in)
++			{
++			case '\\':
++			case '.': case '*': case '^': case '$': case '/':
++			case ' ': case '(': case ')': case '+':
++			case '-': case '?': case '[': case ']': case '{':
++			case '|': case '}':
++				if (out)
++					out[len] = '\\';
++				++len;
++			default:
++				if (out)
++					out[len] = (unsigned char)(in & 0xFF);
++				++len;
++				break;
++			}
++		return len;
++	}
++
++	if (in < 0x800)
++		{
++			if (out)
++				{
++					out[0] = 0xc0 + (in >> 6);
++					out[1] = 0x80 + ((in >> 0) & 0x3f);
++				}
++			return 2;
++		}
++	if (in < 0x10000)
++		{
++			if (out)
++				{
++					out[0] = 0xe0 + (in >> 12);
++					out[1] = 0x80 + ((in >> 6) & 0x3f);
++					out[2] = 0x80 + ((in >> 0) & 0x3f);
++				}
++			return 3;
++		}
++	if (in < 0x200000)
++		{
++			if (out)
++				{
++					out[0] = 0xf0 + (in >> 18);
++					out[1] = 0x80 + ((in >> 12) & 0x3f);
++					out[2] = 0x80 + ((in >> 6) & 0x3f);
++					out[3] = 0x80 + ((in >> 0) & 0x3f);
++				}
++			return 4;
++		}
++	if (in < 0x4000000)
++		{
++			if (out)
++				{
++					out[0] = 0xf8 + (in >> 24);
++					out[1] = 0x80 + ((in >> 18) & 0x3f);
++					out[2] = 0x80 + ((in >> 12) & 0x3f);
++					out[3] = 0x80 + ((in >> 6) & 0x3f);
++					out[4] = 0x80 + ((in >> 0) & 0x3f);
++				}
++			return 5;
++		}
++	else
++		{
++			if (out)
++				{
++					out[0] = 0xf8 + (in >> 30);
++					out[1] = 0x80 + ((in >> 24) & 0x3f);
++					out[2] = 0x80 + ((in >> 18) & 0x3f);
++					out[3] = 0x80 + ((in >> 12) & 0x3f);
++					out[4] = 0x80 + ((in >> 6) & 0x3f);
++					out[5] = 0x80 + ((in >> 0) & 0x3f);
++				}
++			return 6;
++		}
++}
++
++static int
++regex_cmp(const char *str, pcre *re, pcre_extra *extra)
++{
++	int ov[9];
++
++	if(re == NULL) return -1;
++
++	if(pcre_exec(re, extra, str, strlen(str), 0, 0, ov, 9) > 0){
++		/* 完全に一致 */
++		if(ov[0] == 0 && strlen(str) == ov[1]) {
++			return 0;
++		}
++
++		/* 頭で一致 */
++		if(ov[0] == 0) {
++			return 1;
++		}
++
++		/* それ以外のどこか */
++		return 2;
++	}
++
++	return -1;
++}
++
+ static void
+ match(void)
+ {
+ 	static char **tokv = NULL;
+ 	static int tokn = 0;
++	static unsigned char *migemo_tokv[255];
++	static pcre *regex_tokv[255];
+ 
+ 	char buf[sizeof text], *s;
+-	int i, tokc = 0;
++	const char* err;
++	int i, tokc = 0, errofs;
+ 	size_t len, textsize;
+ 	struct item *item, *lprefix, *lsubstr, *prefixend, *substrend;
++	pcre_extra *extra[255];
++	pcre_jit_stack *jit_stack = 0;
+ 
+ 	strcpy(buf, text);
+ 	/* separate input text into tokens to be matched individually */
+@@ -227,21 +357,67 @@ match(void)
+ 			die("cannot realloc %u bytes:", tokn * sizeof *tokv);
+ 	len = tokc ? strlen(tokv[0]) : 0;
+ 
++	if (migemo_mode) {
++		jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
++		for (i = 0; i < tokc; i++)
++			migemo_tokv[i] = migemo_query(mgm, (unsigned char*)tokv[i]);
++
++		for (i = 0; i < tokc; i++) {
++			pcre *re = pcre_compile((char*)migemo_tokv[i], PCRE_UTF8|PCRE_CASELESS, &err, &errofs, NULL);
++			extra[i] = pcre_study(re, PCRE_STUDY_JIT_COMPILE, &err);
++			pcre_assign_jit_stack(extra[i], NULL, jit_stack);
++
++			if(re == NULL) {
++				regex_tokv[i] = NULL;
++				continue;
++			}
++			else {
++				regex_tokv[i] = re;
++			}
++		}
++	}
++
+ 	matches = lprefix = lsubstr = matchend = prefixend = substrend = NULL;
+ 	textsize = strlen(text) + 1;
+ 	for (item = items; item && item->text; item++) {
+-		for (i = 0; i < tokc; i++)
+-			if (!fstrstr(item->text, tokv[i]))
+-				break;
++		int tokv0_rval = -1;
++		for (i = 0; i < tokc; i++) {
++			if (migemo_mode) {
++				if (i == 0) {
++					tokv0_rval = regex_cmp(item->text, regex_tokv[i], extra[i]);
++					if (tokv0_rval == -1) break;
++				}
++				else {
++					if (regex_cmp(item->text, regex_tokv[i], extra[i]) == -1) {
++						break;
++					}
++				}
++			}
++			else {
++				if (!fstrstr(item->text, tokv[i]))
++					break;
++			}
++		}
+ 		if (i != tokc) /* not all tokens match */
+ 			continue;
+-		/* exact matches go first, then prefixes, then substrings */
+-		if (!tokc || !fstrncmp(text, item->text, textsize))
+-			appenditem(item, &matches, &matchend);
+-		else if (!fstrncmp(tokv[0], item->text, len))
+-			appenditem(item, &lprefix, &prefixend);
+-		else
+-			appenditem(item, &lsubstr, &substrend);
++
++		if (migemo_mode) {
++			if (!tokc || tokv0_rval == 0)
++				appenditem(item, &matches, &matchend);
++			else if (tokv0_rval == 1)
++				appenditem(item, &lprefix, &prefixend);
++			else
++				appenditem(item, &lsubstr, &substrend);
++		}
++		else {
++			/* exact matches go first, then prefixes, then substrings */
++			if (!tokc || !fstrncmp(text, item->text, textsize))
++				appenditem(item, &matches, &matchend);
++			else if (!fstrncmp(tokv[0], item->text, len))
++				appenditem(item, &lprefix, &prefixend);
++			else
++				appenditem(item, &lsubstr, &substrend);
++		}
+ 	}
+ 	if (lprefix) {
+ 		if (matches) {
+@@ -259,6 +435,16 @@ match(void)
+ 			matches = lsubstr;
+ 		matchend = substrend;
+ 	}
++
++	if (migemo_mode) {
++		for (i = 0; i < tokc; i++) {
++			migemo_release(mgm, migemo_tokv[i]);
++			pcre_free(regex_tokv[i]);
++			pcre_free_study(extra[i]);
++		}
++		pcre_jit_stack_free(jit_stack);
++	}
++
+ 	curr = sel = matches;
+ 	calcoffsets();
+ }
+@@ -673,7 +859,7 @@ setup(void)
+ static void
+ usage(void)
+ {
+-	fputs("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
++	fputs("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor] [-migemo] [-migemo-dict dict]\n"
+ 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]\n", stderr);
+ 	exit(1);
+ }
+@@ -693,6 +879,8 @@ main(int argc, char *argv[])
+ 			topbar = 0;
+ 		else if (!strcmp(argv[i], "-f"))   /* grabs keyboard before reading stdin */
+ 			fast = 1;
++		else if (!strcmp(argv[i], "-migemo"))  /* Migemo */
++			migemo_mode = 1;
+ 		else if (!strcmp(argv[i], "-i")) { /* case-insensitive item matching */
+ 			fstrncmp = strncasecmp;
+ 			fstrstr = cistrstr;
+@@ -717,6 +905,8 @@ main(int argc, char *argv[])
+ 			colors[SchemeSel][ColFg] = argv[++i];
+ 		else if (!strcmp(argv[i], "-w"))   /* embedding window id */
+ 			embed = argv[++i];
++		else if (!strcmp(argv[i], "-migemo-dict"))   /* migemo dictionary */
++			migemo_dict = argv[++i];
+ 		else
+ 			usage();
+ 
+@@ -736,6 +926,12 @@ main(int argc, char *argv[])
+ 		die("no fonts could be loaded.");
+ 	lrpad = drw->fonts->h;
+ 
++	if (migemo_mode) {
++		mgm = migemo_open(migemo_dict);
++		migemo_set_operator(mgm, MIGEMO_OPINDEX_NEST_IN, (unsigned char*)"(?:");
++		migemo_setproc_int2char(mgm, (MIGEMO_PROC_INT2CHAR)(utf8pcre_int2char));
++	}
++
+ 	if (fast) {
+ 		grabkeyboard();
+ 		readstdin();
+@@ -743,8 +939,13 @@ main(int argc, char *argv[])
+ 		readstdin();
+ 		grabkeyboard();
+ 	}
++
+ 	setup();
+ 	run();
+ 
++	if (migemo_mode) {
++		migemo_close(mgm);
++	}
++
+ 	return 1; /* unreachable */
+ }

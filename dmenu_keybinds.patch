@@ -1,0 +1,107 @@
+diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
+--- dmenu-4.8org/dmenu.c	2018-03-15 04:26:40.000000000 +0900
++++ dmenu-4.8/dmenu.c	2018-06-09 15:29:44.168520269 +0900
+@@ -324,7 +324,7 @@ keypress(XKeyEvent *ev)
+ 		case XK_f: ksym = XK_Right;     break;
+ 		case XK_g: ksym = XK_Escape;    break;
+ 		case XK_h: ksym = XK_BackSpace; break;
+-		case XK_i: ksym = XK_Tab;       break;
++/*		case XK_i: ksym = XK_Tab;       break; */
+ 		case XK_j: /* fallthrough */
+ 		case XK_J: /* fallthrough */
+ 		case XK_m: /* fallthrough */
+@@ -339,6 +339,7 @@ keypress(XKeyEvent *ev)
+ 		case XK_u: /* delete left */
+ 			insert(NULL, 0 - cursor);
+ 			break;
++		case XK_BackSpace:
+ 		case XK_w: /* delete word */
+ 			while (cursor > 0 && strchr(worddelimiters, text[nextrune(-1)]))
+ 				insert(NULL, nextrune(-1) - cursor);
+@@ -350,6 +351,11 @@ keypress(XKeyEvent *ev)
+ 			XConvertSelection(dpy, (ev->state & ShiftMask) ? clip : XA_PRIMARY,
+ 			                  utf8, utf8, win, CurrentTime);
+ 			return;
++		case XK_v: /* paste selection (invert) */
++		case XK_V:
++			XConvertSelection(dpy, !(ev->state & ShiftMask) ? clip : XA_PRIMARY,
++			                  utf8, utf8, win, CurrentTime);
++			return;
+ 		case XK_Left:
+ 			movewordedge(-1);
+ 			ksym = NoSymbol;
+@@ -364,6 +370,15 @@ keypress(XKeyEvent *ev)
+ 		case XK_bracketleft:
+ 			cleanup();
+ 			exit(1);
++		case XK_i:
++		case XK_space:
++			if (!sel)
++				return;
++			strncpy(text, sel->text, sizeof text - 1);
++			text[sizeof text - 1] = '\0';
++			cursor = strlen(text);
++			match();
++			break;
+ 		default:
+ 			return;
+ 		}
+@@ -393,15 +408,24 @@ keypress(XKeyEvent *ev)
+ 		break;
+ 	case NoSymbol:
+ 		break;
++	case XK_Insert:
++		if ((ev->state & ShiftMask)) { /* paste selection (XA_PRIMARY Only) */
++			XConvertSelection(dpy, XA_PRIMARY,
++			                  utf8, utf8, win, CurrentTime);
++			return;
++		}
++		break;
+ 	case XK_Delete:
+ 		if (text[cursor] == '\0')
+ 			return;
+ 		cursor = nextrune(+1);
+ 		/* fallthrough */
+ 	case XK_BackSpace:
+-		if (cursor == 0)
+-			return;
+-		insert(NULL, nextrune(-1) - cursor);
++		if (!(ev->state & ControlMask)) {
++			if (cursor == 0)
++				return;
++			insert(NULL, nextrune(-1) - cursor);
++		}
+ 		break;
+ 	case XK_End:
+ 		if (text[cursor] != '\0') {
+@@ -438,6 +462,7 @@ keypress(XKeyEvent *ev)
+ 		if (lines > 0)
+ 			return;
+ 		/* fallthrough */
++	case XK_ISO_Left_Tab:
+ 	case XK_Up:
+ 		if (sel && sel->left && (sel = sel->left)->right == curr) {
+ 			curr = prev;
+@@ -474,12 +499,14 @@ keypress(XKeyEvent *ev)
+ 		if (lines > 0)
+ 			return;
+ 		/* fallthrough */
++	case XK_Tab:
+ 	case XK_Down:
+ 		if (sel && sel->right && (sel = sel->right) == next) {
+ 			curr = next;
+ 			calcoffsets();
+ 		}
+ 		break;
++/*
+ 	case XK_Tab:
+ 		if (!sel)
+ 			return;
+@@ -488,6 +515,7 @@ keypress(XKeyEvent *ev)
+ 		cursor = strlen(text);
+ 		match();
+ 		break;
++*/
+ 	}
+ 	drawmenu();
+ }
