@@ -1,0 +1,44 @@
+diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
+--- dmenu-4.9org/dmenu.c	2019-02-02 21:55:02.000000000 +0900
++++ dmenu-4.9/dmenu.c	2019-03-06 16:52:08.514832236 +0900
+@@ -535,7 +535,8 @@ readstdin(void)
+ 		if (!(items[i].text = strdup(buf)))
+ 			die("cannot strdup %u bytes:", strlen(buf) + 1);
+ 		items[i].out = 0;
+-		drw_font_getexts(drw->fonts, buf, strlen(buf), &tmpmax, NULL);
++		if (!(lines > 0))
++			drw_font_getexts(drw->fonts, buf, strlen(buf), &tmpmax, NULL);
+ 		if (tmpmax > inputw) {
+ 			inputw = tmpmax;
+ 			imax = i;
+@@ -661,11 +662,28 @@ setup(void)
+ 
+ 	/* open input methods */
+ 	xim = XOpenIM(dpy, NULL, NULL, NULL);
++	if(!xim) {
++		XSetLocaleModifiers("@im=none");
++		xim = XOpenIM(dpy, NULL, NULL, NULL);
++		if(!xim) die("XOpenIM Failed.\n");
++	}
+ 	xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+-	                XNClientWindow, win, XNFocusWindow, win, NULL);
++	                XNClientWindow, parentwin, XNFocusWindow, parentwin, NULL);
++	/*                XNClientWindow, win, XNFocusWindow, win, NULL);*/
+ 
+ 	XMapRaised(dpy, win);
+-	XSetInputFocus(dpy, win, RevertToParent, CurrentTime);
++
++	XVaNestedList preedit_attr;
++	XPoint spot;
++
++	spot.x = 0;
++	spot.y = topbar ? y + mh: 0;
++
++	preedit_attr = XVaCreateNestedList(0, XNSpotLocation, &spot, NULL);
++	XSetICValues(xic, XNPreeditAttributes, preedit_attr, NULL);
++	XFree(preedit_attr);
++
++	/*XSetInputFocus(dpy, win, RevertToParent, CurrentTime);*/
+ 	if (embed) {
+ 		XSelectInput(dpy, parentwin, FocusChangeMask);
+ 		if (XQueryTree(dpy, parentwin, &dw, &w, &dws, &du) && dws) {

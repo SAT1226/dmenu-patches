@@ -1,6 +1,6 @@
-diff -uprN dmenu-4.8org/config.def.h dmenu-4.8/config.def.h
---- dmenu-4.8org/config.def.h	2018-03-15 04:26:40.000000000 +0900
-+++ dmenu-4.8/config.def.h	2018-06-09 21:12:04.274102168 +0900
+diff -uprN dmenu-4.9org/config.def.h dmenu-4.9/config.def.h
+--- dmenu-4.9org/config.def.h	2019-02-02 21:55:02.000000000 +0900
++++ dmenu-4.9/config.def.h	2019-03-06 15:35:03.545870368 +0900
 @@ -21,3 +21,6 @@ static unsigned int lines      = 0;
   * for example: " /?\"&[]"
   */
@@ -8,22 +8,22 @@ diff -uprN dmenu-4.8org/config.def.h dmenu-4.8/config.def.h
 +
 +/* -migemo-dict option; migemo dictionary */
 +static const char *migemo_dict = "/usr/share/migemo/utf-8/migemo-dict";
-diff -uprN dmenu-4.8org/config.mk dmenu-4.8/config.mk
---- dmenu-4.8org/config.mk	2018-03-15 04:26:40.000000000 +0900
-+++ dmenu-4.8/config.mk	2018-05-26 15:50:25.213899701 +0900
+diff -uprN dmenu-4.9org/config.mk dmenu-4.9/config.mk
+--- dmenu-4.9org/config.mk	2019-02-02 21:55:02.000000000 +0900
++++ dmenu-4.9/config.mk	2019-03-06 15:35:51.866063160 +0900
 @@ -20,7 +20,7 @@ FREETYPEINC = /usr/include/freetype2
  
  # includes and libs
- INCS = -I${X11INC} -I${FREETYPEINC}
--LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS}
-+LIBS = -L${X11LIB} -lX11 ${XINERAMALIBS} ${FREETYPELIBS} -lmigemo -lpcre
+ INCS = -I$(X11INC) -I$(FREETYPEINC)
+-LIBS = -L$(X11LIB) -lX11 $(XINERAMALIBS) $(FREETYPELIBS)
++LIBS = -L$(X11LIB) -lX11 $(XINERAMALIBS) $(FREETYPELIBS) -lmigemo -lpcre
  
  # flags
- CPPFLAGS = -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700 -D_POSIX_C_SOURCE=200809L -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
-diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
---- dmenu-4.8org/dmenu.c	2018-03-15 04:26:40.000000000 +0900
-+++ dmenu-4.8/dmenu.c	2018-06-09 21:26:27.914086809 +0900
-@@ -15,6 +15,9 @@
+ CPPFLAGS = -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700 -D_POSIX_C_SOURCE=200809L -DVERSION=\"$(VERSION)\" $(XINERAMAFLAGS)
+diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
+--- dmenu-4.9org/dmenu.c	2019-02-02 21:55:02.000000000 +0900
++++ dmenu-4.9/dmenu.c	2019-03-06 15:48:20.172404652 +0900
+@@ -16,6 +16,9 @@
  #endif
  #include <X11/Xft/Xft.h>
  
@@ -33,7 +33,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  #include "drw.h"
  #include "util.h"
  
-@@ -52,6 +55,9 @@ static XIC xic;
+@@ -53,6 +56,9 @@ static XIC xic;
  static Drw *drw;
  static Clr *scheme[SchemeLast];
  
@@ -43,7 +43,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  #include "config.h"
  
  static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
-@@ -209,16 +215,140 @@ grabkeyboard(void)
+@@ -210,39 +216,223 @@ grabkeyboard(void)
  	die("cannot grab keyboard");
  }
  
@@ -171,8 +171,8 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  {
  	static char **tokv = NULL;
  	static int tokn = 0;
-+	static unsigned char *migemo_tokv[255];
-+	static pcre *regex_tokv[255];
++	static unsigned char **migemo_tokv = NULL;
++	static pcre **regex_tokv = NULL;
  
  	char buf[sizeof text], *s;
 -	int i, tokc = 0;
@@ -180,13 +180,32 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
 +	int i, tokc = 0, errofs;
  	size_t len, textsize;
  	struct item *item, *lprefix, *lsubstr, *prefixend, *substrend;
-+	pcre_extra *extra[255];
++	static pcre_extra **extra = NULL;
 +	pcre_jit_stack *jit_stack = 0;
  
  	strcpy(buf, text);
  	/* separate input text into tokens to be matched individually */
-@@ -227,21 +357,67 @@ match(void)
- 			die("cannot realloc %u bytes:", tokn * sizeof *tokv);
+-	for (s = strtok(buf, " "); s; tokv[tokc - 1] = s, s = strtok(NULL, " "))
+-		if (++tokc > tokn && !(tokv = realloc(tokv, ++tokn * sizeof *tokv)))
+-			die("cannot realloc %u bytes:", tokn * sizeof *tokv);
++	for (s = strtok(buf, " "); s; tokv[tokc - 1] = s, s = strtok(NULL, " ")) {
++		if (++tokc > tokn) {
++			if (!(tokv = realloc(tokv, ++tokn * sizeof *tokv))) {
++				die("cannot realloc %u bytes:", tokn * sizeof *tokv);
++			}
++			if (migemo_mode) {
++				if (!(migemo_tokv = realloc(migemo_tokv, tokn * sizeof(*migemo_tokv)))) {
++					die("cannot realloc %u bytes:", tokn * sizeof(*migemo_tokv));
++				}
++				if (!(regex_tokv = realloc(regex_tokv, tokn * sizeof(*regex_tokv)))) {
++					die("cannot realloc %u bytes:", tokn * sizeof(*regex_tokv));
++				}
++				if (!(extra = realloc(extra, tokn * sizeof(*extra)))) {
++					die("cannot realloc %u bytes:", tokn * sizeof(*extra));
++				}
++			}
++		}
++	}
  	len = tokc ? strlen(tokv[0]) : 0;
  
 +	if (migemo_mode) {
@@ -242,7 +261,6 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
 -			appenditem(item, &lprefix, &prefixend);
 -		else
 -			appenditem(item, &lsubstr, &substrend);
-+
 +		if (migemo_mode) {
 +			if (!tokc || tokv0_rval == 0)
 +				appenditem(item, &matches, &matchend);
@@ -263,7 +281,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  	}
  	if (lprefix) {
  		if (matches) {
-@@ -259,6 +435,16 @@ match(void)
+@@ -260,6 +450,16 @@ match(void)
  			matches = lsubstr;
  		matchend = substrend;
  	}
@@ -280,7 +298,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  	curr = sel = matches;
  	calcoffsets();
  }
-@@ -673,7 +859,7 @@ setup(void)
+@@ -682,7 +882,7 @@ setup(void)
  static void
  usage(void)
  {
@@ -289,7 +307,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]\n", stderr);
  	exit(1);
  }
-@@ -693,6 +879,8 @@ main(int argc, char *argv[])
+@@ -702,6 +902,8 @@ main(int argc, char *argv[])
  			topbar = 0;
  		else if (!strcmp(argv[i], "-f"))   /* grabs keyboard before reading stdin */
  			fast = 1;
@@ -298,7 +316,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  		else if (!strcmp(argv[i], "-i")) { /* case-insensitive item matching */
  			fstrncmp = strncasecmp;
  			fstrstr = cistrstr;
-@@ -717,6 +905,8 @@ main(int argc, char *argv[])
+@@ -726,6 +928,8 @@ main(int argc, char *argv[])
  			colors[SchemeSel][ColFg] = argv[++i];
  		else if (!strcmp(argv[i], "-w"))   /* embedding window id */
  			embed = argv[++i];
@@ -307,9 +325,9 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  		else
  			usage();
  
-@@ -736,6 +926,12 @@ main(int argc, char *argv[])
- 		die("no fonts could be loaded.");
- 	lrpad = drw->fonts->h;
+@@ -752,6 +956,12 @@ main(int argc, char *argv[])
+ 		die("pledge");
+ #endif
  
 +	if (migemo_mode) {
 +		mgm = migemo_open(migemo_dict);
@@ -317,14 +335,10 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
 +		migemo_setproc_int2char(mgm, (MIGEMO_PROC_INT2CHAR)(utf8pcre_int2char));
 +	}
 +
- 	if (fast) {
+ 	if (fast && !isatty(0)) {
  		grabkeyboard();
  		readstdin();
-@@ -743,8 +939,13 @@ main(int argc, char *argv[])
- 		readstdin();
- 		grabkeyboard();
- 	}
-+
+@@ -762,5 +972,9 @@ main(int argc, char *argv[])
  	setup();
  	run();
  

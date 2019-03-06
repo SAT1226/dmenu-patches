@@ -1,4 +1,4 @@
-# dmenu4.8 patches
+# dmenu4.9 patches
 
 ## dmenu-migemo.patch
 Add migemo matching to dmenu.     
@@ -21,9 +21,14 @@ Change keybinds.
 |Shift + Tab|Down|
 |Shift + Insert|Paste from primary X selection|
 |Ctrl  + Space|Copy the selected item to the input|field.
+|Ctrl  + Tab|Copy the selected item to the input|field.
 |Ctrl  + v|Paste from X clipboard|
 |Ctrl  + V|Paste from primary X selection|
 |Ctrl  + BackSpace|Delete word left|
+
+## dmenu-fix.patch
+XIM Bug fix.    
+Performance fix for '-l' option.
 
 ## License
 MIT License

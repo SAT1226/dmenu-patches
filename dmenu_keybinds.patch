@@ -1,16 +1,16 @@
-diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
---- dmenu-4.8org/dmenu.c	2018-03-15 04:26:40.000000000 +0900
-+++ dmenu-4.8/dmenu.c	2018-06-09 15:29:44.168520269 +0900
-@@ -324,7 +324,7 @@ keypress(XKeyEvent *ev)
+diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
+--- dmenu-4.9org/dmenu.c	2019-02-02 21:55:02.000000000 +0900
++++ dmenu-4.9/dmenu.c	2019-03-06 16:06:45.862083635 +0900
+@@ -333,7 +333,7 @@ keypress(XKeyEvent *ev)
  		case XK_f: ksym = XK_Right;     break;
  		case XK_g: ksym = XK_Escape;    break;
  		case XK_h: ksym = XK_BackSpace; break;
 -		case XK_i: ksym = XK_Tab;       break;
-+/*		case XK_i: ksym = XK_Tab;       break; */
++		/*case XK_i: ksym = XK_Tab;       break;*/
  		case XK_j: /* fallthrough */
  		case XK_J: /* fallthrough */
  		case XK_m: /* fallthrough */
-@@ -339,6 +339,7 @@ keypress(XKeyEvent *ev)
+@@ -348,6 +348,7 @@ keypress(XKeyEvent *ev)
  		case XK_u: /* delete left */
  			insert(NULL, 0 - cursor);
  			break;
@@ -18,7 +18,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  		case XK_w: /* delete word */
  			while (cursor > 0 && strchr(worddelimiters, text[nextrune(-1)]))
  				insert(NULL, nextrune(-1) - cursor);
-@@ -350,6 +351,11 @@ keypress(XKeyEvent *ev)
+@@ -359,6 +360,11 @@ keypress(XKeyEvent *ev)
  			XConvertSelection(dpy, (ev->state & ShiftMask) ? clip : XA_PRIMARY,
  			                  utf8, utf8, win, CurrentTime);
  			return;
@@ -29,13 +29,14 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
 +			return;
  		case XK_Left:
  			movewordedge(-1);
- 			ksym = NoSymbol;
-@@ -364,6 +370,15 @@ keypress(XKeyEvent *ev)
+ 			goto draw;
+@@ -371,6 +377,16 @@ keypress(XKeyEvent *ev)
  		case XK_bracketleft:
  			cleanup();
  			exit(1);
 +		case XK_i:
 +		case XK_space:
++		case XK_Tab:
 +			if (!sel)
 +				return;
 +			strncpy(text, sel->text, sizeof text - 1);
@@ -46,9 +47,9 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  		default:
  			return;
  		}
-@@ -393,15 +408,24 @@ keypress(XKeyEvent *ev)
- 		break;
- 	case NoSymbol:
+@@ -399,15 +415,24 @@ insert:
+ 		if (!iscntrl(*buf))
+ 			insert(buf, len);
  		break;
 +	case XK_Insert:
 +		if ((ev->state & ShiftMask)) { /* paste selection (XA_PRIMARY Only) */
@@ -74,7 +75,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  		break;
  	case XK_End:
  		if (text[cursor] != '\0') {
-@@ -438,6 +462,7 @@ keypress(XKeyEvent *ev)
+@@ -444,6 +469,7 @@ insert:
  		if (lines > 0)
  			return;
  		/* fallthrough */
@@ -82,7 +83,7 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  	case XK_Up:
  		if (sel && sel->left && (sel = sel->left)->right == curr) {
  			curr = prev;
-@@ -474,12 +499,14 @@ keypress(XKeyEvent *ev)
+@@ -480,12 +506,14 @@ insert:
  		if (lines > 0)
  			return;
  		/* fallthrough */
@@ -97,11 +98,11 @@ diff -uprN dmenu-4.8org/dmenu.c dmenu-4.8/dmenu.c
  	case XK_Tab:
  		if (!sel)
  			return;
-@@ -488,6 +515,7 @@ keypress(XKeyEvent *ev)
+@@ -494,6 +522,7 @@ insert:
  		cursor = strlen(text);
  		match();
  		break;
 +*/
  	}
- 	drawmenu();
- }
+ 
+ draw:
