@@ -1,16 +1,16 @@
-diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
---- dmenu-4.9org/dmenu.c	2019-02-02 21:55:02.000000000 +0900
-+++ dmenu-4.9/dmenu.c	2019-03-06 16:06:45.862083635 +0900
-@@ -333,7 +333,7 @@ keypress(XKeyEvent *ev)
+diff -uprN dmenu-5.2/dmenu.c dmenu-5.2-keybinds/dmenu.c
+--- dmenu-5.2/dmenu.c	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-keybinds/dmenu.c	2022-10-10 14:12:23.004218196 +0900
+@@ -350,7 +350,7 @@ keypress(XKeyEvent *ev)
  		case XK_f: ksym = XK_Right;     break;
  		case XK_g: ksym = XK_Escape;    break;
  		case XK_h: ksym = XK_BackSpace; break;
 -		case XK_i: ksym = XK_Tab;       break;
-+		/*case XK_i: ksym = XK_Tab;       break;*/
++/*		case XK_i: ksym = XK_Tab;       break;*/
  		case XK_j: /* fallthrough */
  		case XK_J: /* fallthrough */
  		case XK_m: /* fallthrough */
-@@ -348,6 +348,7 @@ keypress(XKeyEvent *ev)
+@@ -365,6 +365,7 @@ keypress(XKeyEvent *ev)
  		case XK_u: /* delete left */
  			insert(NULL, 0 - cursor);
  			break;
@@ -18,7 +18,7 @@ diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  		case XK_w: /* delete word */
  			while (cursor > 0 && strchr(worddelimiters, text[nextrune(-1)]))
  				insert(NULL, nextrune(-1) - cursor);
-@@ -359,6 +360,11 @@ keypress(XKeyEvent *ev)
+@@ -376,6 +377,11 @@ keypress(XKeyEvent *ev)
  			XConvertSelection(dpy, (ev->state & ShiftMask) ? clip : XA_PRIMARY,
  			                  utf8, utf8, win, CurrentTime);
  			return;
@@ -28,9 +28,9 @@ diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
 +			                  utf8, utf8, win, CurrentTime);
 +			return;
  		case XK_Left:
+ 		case XK_KP_Left:
  			movewordedge(-1);
- 			goto draw;
-@@ -371,6 +377,16 @@ keypress(XKeyEvent *ev)
+@@ -390,6 +396,16 @@ keypress(XKeyEvent *ev)
  		case XK_bracketleft:
  			cleanup();
  			exit(1);
@@ -47,8 +47,8 @@ diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  		default:
  			return;
  		}
-@@ -399,15 +415,24 @@ insert:
- 		if (!iscntrl(*buf))
+@@ -418,6 +434,13 @@ insert:
+ 		if (!iscntrl((unsigned char)*buf))
  			insert(buf, len);
  		break;
 +	case XK_Insert:
@@ -59,8 +59,9 @@ diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
 +		}
 +		break;
  	case XK_Delete:
+ 	case XK_KP_Delete:
  		if (text[cursor] == '\0')
- 			return;
+@@ -425,9 +448,11 @@ insert:
  		cursor = nextrune(+1);
  		/* fallthrough */
  	case XK_BackSpace:
@@ -74,23 +75,35 @@ diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
 +		}
  		break;
  	case XK_End:
- 		if (text[cursor] != '\0') {
-@@ -444,6 +469,7 @@ insert:
+ 	case XK_KP_End:
+@@ -467,6 +492,7 @@ insert:
  		if (lines > 0)
  			return;
  		/* fallthrough */
 +	case XK_ISO_Left_Tab:
  	case XK_Up:
+ 	case XK_KP_Up:
  		if (sel && sel->left && (sel = sel->left)->right == curr) {
- 			curr = prev;
-@@ -480,12 +506,14 @@ insert:
+@@ -497,6 +523,10 @@ insert:
+ 		}
+ 		if (sel)
+ 			sel->out = 1;
++		if (sel && sel->right && (sel = sel->right) == next) {
++			curr = next;
++			calcoffsets();
++		}
+ 		break;
+ 	case XK_Right:
+ 	case XK_KP_Right:
+@@ -507,6 +537,7 @@ insert:
  		if (lines > 0)
  			return;
  		/* fallthrough */
 +	case XK_Tab:
  	case XK_Down:
+ 	case XK_KP_Down:
  		if (sel && sel->right && (sel = sel->right) == next) {
- 			curr = next;
+@@ -514,6 +545,7 @@ insert:
  			calcoffsets();
  		}
  		break;
@@ -98,8 +111,8 @@ diff -up dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  	case XK_Tab:
  		if (!sel)
  			return;
-@@ -494,6 +522,7 @@ insert:
- 		cursor = strlen(text);
+@@ -522,6 +554,7 @@ insert:
+ 		text[cursor] = '\0';
  		match();
  		break;
 +*/

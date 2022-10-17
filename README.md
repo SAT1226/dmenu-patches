@@ -1,4 +1,7 @@
-# dmenu4.9 patches
+# dmenu5.2 patches
+
+## dmenu-xim.patch
+Add XIM support.    
 
 ## dmenu-migemo.patch
 Add migemo matching to dmenu.     
@@ -13,22 +16,19 @@ Default migemo dictionary: '/usr/share/migemo/utf-8/migemo-dict'
 * [PCRE](https://www.pcre.org/)
 
 ## dmenu-keybinds.patch
-Change keybinds.
+Change keybinds.    
 
 |Keys|Description|
 | ---- | ---- |
 |Tab|Up|
 |Shift + Tab|Down|
+|Ctrl+Return|Confirm selection & select next entry.|
 |Shift + Insert|Paste from primary X selection|
 |Ctrl  + Space|Copy the selected item to the input|field.
 |Ctrl  + Tab|Copy the selected item to the input|field.
 |Ctrl  + v|Paste from X clipboard|
 |Ctrl  + V|Paste from primary X selection|
 |Ctrl  + BackSpace|Delete word left|
-
-## dmenu-fix.patch
-XIM Bug fix.    
-Performance fix for '-l' option.
 
 ## License
 MIT License

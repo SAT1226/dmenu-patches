@@ -1,6 +1,6 @@
-diff -uprN dmenu-4.9org/config.def.h dmenu-4.9/config.def.h
---- dmenu-4.9org/config.def.h	2019-02-02 21:55:02.000000000 +0900
-+++ dmenu-4.9/config.def.h	2019-03-06 15:35:03.545870368 +0900
+diff -uprN dmenu-5.2/config.def.h dmenu-5.2-migemo/config.def.h
+--- dmenu-5.2/config.def.h	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-migemo/config.def.h	2022-10-10 14:21:06.911495888 +0900
 @@ -21,3 +21,6 @@ static unsigned int lines      = 0;
   * for example: " /?\"&[]"
   */
@@ -8,10 +8,10 @@ diff -uprN dmenu-4.9org/config.def.h dmenu-4.9/config.def.h
 +
 +/* -migemo-dict option; migemo dictionary */
 +static const char *migemo_dict = "/usr/share/migemo/utf-8/migemo-dict";
-diff -uprN dmenu-4.9org/config.mk dmenu-4.9/config.mk
---- dmenu-4.9org/config.mk	2019-02-02 21:55:02.000000000 +0900
-+++ dmenu-4.9/config.mk	2019-03-06 15:35:51.866063160 +0900
-@@ -20,7 +20,7 @@ FREETYPEINC = /usr/include/freetype2
+diff -uprN dmenu-5.2/config.mk dmenu-5.2-migemo/config.mk
+--- dmenu-5.2/config.mk	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-migemo/config.mk	2022-10-10 14:21:44.174875266 +0900
+@@ -21,7 +21,7 @@ FREETYPEINC = /usr/include/freetype2
  
  # includes and libs
  INCS = -I$(X11INC) -I$(FREETYPEINC)
@@ -20,9 +20,9 @@ diff -uprN dmenu-4.9org/config.mk dmenu-4.9/config.mk
  
  # flags
  CPPFLAGS = -D_DEFAULT_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE=700 -D_POSIX_C_SOURCE=200809L -DVERSION=\"$(VERSION)\" $(XINERAMAFLAGS)
-diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
---- dmenu-4.9org/dmenu.c	2019-02-02 21:55:02.000000000 +0900
-+++ dmenu-4.9/dmenu.c	2019-03-06 15:48:20.172404652 +0900
+diff -uprN dmenu-5.2/dmenu.c dmenu-5.2-migemo/dmenu.c
+--- dmenu-5.2/dmenu.c	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-migemo/dmenu.c	2022-10-10 14:34:06.599156676 +0900
 @@ -16,6 +16,9 @@
  #endif
  #include <X11/Xft/Xft.h>
@@ -43,7 +43,7 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  #include "config.h"
  
  static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
-@@ -210,39 +216,223 @@ grabkeyboard(void)
+@@ -227,39 +233,225 @@ grabkeyboard(void)
  	die("cannot grab keyboard");
  }
  
@@ -187,7 +187,7 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  	/* separate input text into tokens to be matched individually */
 -	for (s = strtok(buf, " "); s; tokv[tokc - 1] = s, s = strtok(NULL, " "))
 -		if (++tokc > tokn && !(tokv = realloc(tokv, ++tokn * sizeof *tokv)))
--			die("cannot realloc %u bytes:", tokn * sizeof *tokv);
+-			die("cannot realloc %zu bytes:", tokn * sizeof *tokv);
 +	for (s = strtok(buf, " "); s; tokv[tokc - 1] = s, s = strtok(NULL, " ")) {
 +		if (++tokc > tokn) {
 +			if (!(tokv = realloc(tokv, ++tokn * sizeof *tokv))) {
@@ -252,6 +252,7 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
 +					break;
 +			}
 +		}
++
  		if (i != tokc) /* not all tokens match */
  			continue;
 -		/* exact matches go first, then prefixes, then substrings */
@@ -278,10 +279,11 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
 +			else
 +				appenditem(item, &lsubstr, &substrend);
 +		}
++
  	}
  	if (lprefix) {
  		if (matches) {
-@@ -260,6 +450,16 @@ match(void)
+@@ -277,6 +469,16 @@ match(void)
  			matches = lsubstr;
  		matchend = substrend;
  	}
@@ -298,16 +300,16 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  	curr = sel = matches;
  	calcoffsets();
  }
-@@ -682,7 +882,7 @@ setup(void)
+@@ -710,7 +912,7 @@ setup(void)
  static void
  usage(void)
  {
--	fputs("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
-+	fputs("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor] [-migemo] [-migemo-dict dict]\n"
- 	      "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]\n", stderr);
- 	exit(1);
+-	die("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
++	die("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor] [-migemo] [-migemo-dict dict]\n"
+ 	    "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]");
  }
-@@ -702,6 +902,8 @@ main(int argc, char *argv[])
+ 
+@@ -729,6 +931,8 @@ main(int argc, char *argv[])
  			topbar = 0;
  		else if (!strcmp(argv[i], "-f"))   /* grabs keyboard before reading stdin */
  			fast = 1;
@@ -316,7 +318,7 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  		else if (!strcmp(argv[i], "-i")) { /* case-insensitive item matching */
  			fstrncmp = strncasecmp;
  			fstrstr = cistrstr;
-@@ -726,6 +928,8 @@ main(int argc, char *argv[])
+@@ -753,6 +957,8 @@ main(int argc, char *argv[])
  			colors[SchemeSel][ColFg] = argv[++i];
  		else if (!strcmp(argv[i], "-w"))   /* embedding window id */
  			embed = argv[++i];
@@ -325,7 +327,7 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  		else
  			usage();
  
-@@ -752,6 +956,12 @@ main(int argc, char *argv[])
+@@ -777,6 +983,12 @@ main(int argc, char *argv[])
  		die("pledge");
  #endif
  
@@ -338,7 +340,7 @@ diff -uprN dmenu-4.9org/dmenu.c dmenu-4.9/dmenu.c
  	if (fast && !isatty(0)) {
  		grabkeyboard();
  		readstdin();
-@@ -762,5 +972,9 @@ main(int argc, char *argv[])
+@@ -787,5 +999,9 @@ main(int argc, char *argv[])
  	setup();
  	run();
  

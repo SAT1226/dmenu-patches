@@ -1,0 +1,56 @@
+diff -uprN dmenu-5.2/dmenu.c dmenu-5.2-xim/dmenu.c
+--- dmenu-5.2/dmenu.c	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-xim/dmenu.c	2022-10-10 13:48:45.959361461 +0900
+@@ -574,7 +574,7 @@ run(void)
+ 	XEvent ev;
+ 
+ 	while (!XNextEvent(dpy, &ev)) {
+-		if (XFilterEvent(&ev, win))
++		if (XFilterEvent(&ev, None))
+ 			continue;
+ 		switch(ev.type) {
+ 		case DestroyNotify:
+@@ -685,15 +685,29 @@ setup(void)
+ 	                    CWOverrideRedirect | CWBackPixel | CWEventMask, &swa);
+ 	XSetClassHint(dpy, win, &ch);
+ 
+-
+ 	/* input methods */
+-	if ((xim = XOpenIM(dpy, NULL, NULL, NULL)) == NULL)
+-		die("XOpenIM failed: could not open input device");
+-
++	if ((xim = XOpenIM(dpy, NULL, NULL, NULL)) == NULL) {
++		XSetLocaleModifiers("@im=local");
++		if ((xim = XOpenIM(dpy, NULL, NULL, NULL)) == NULL) {
++			XSetLocaleModifiers("@im=");
++			if ((xim = XOpenIM(dpy, NULL, NULL, NULL)) == NULL)
++				die("XOpenIM failed: could not open input device");
++		}
++	}
+ 	xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+-	                XNClientWindow, win, XNFocusWindow, win, NULL);
++	                XNClientWindow, parentwin, XNFocusWindow, parentwin, NULL);
+ 
+ 	XMapRaised(dpy, win);
++	XVaNestedList preedit_attr;
++	XPoint spot;
++
++	spot.x = x;
++	spot.y = topbar ? y + mh: 0;
++
++	preedit_attr = XVaCreateNestedList(0, XNSpotLocation, &spot, NULL);
++	XSetICValues(xic, XNPreeditAttributes, preedit_attr, NULL);
++	XFree(preedit_attr);
++
+ 	if (embed) {
+ 		XSelectInput(dpy, parentwin, FocusChangeMask | SubstructureNotifyMask);
+ 		if (XQueryTree(dpy, parentwin, &dw, &w, &dws, &du) && dws) {
+@@ -758,6 +772,8 @@ main(int argc, char *argv[])
+ 
+ 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
+ 		fputs("warning: no locale support\n", stderr);
++	if (!XSetLocaleModifiers(""))
++		fputs("warning: no locale modifiers support\n", stderr);
+ 	if (!(dpy = XOpenDisplay(NULL)))
+ 		die("cannot open display");
+ 	screen = DefaultScreen(dpy);
