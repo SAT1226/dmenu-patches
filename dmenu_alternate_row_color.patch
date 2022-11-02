@@ -1,0 +1,88 @@
+diff -uprN dmenu-5.2/config.def.h dmenu-5.2-AlternateRowColor/config.def.h
+--- dmenu-5.2/config.def.h	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-AlternateRowColor/config.def.h	2022-10-27 18:12:36.662631399 +0900
+@@ -12,6 +12,7 @@ static const char *colors[SchemeLast][2]
+ 	[SchemeNorm] = { "#bbbbbb", "#222222" },
+ 	[SchemeSel] = { "#eeeeee", "#005577" },
+ 	[SchemeOut] = { "#000000", "#00ffff" },
++	[SchemeNorm2] = { "#bbbbbb", "#1A1A1A" },
+ };
+ /* -l option; if nonzero, dmenu uses vertical list with given number of lines */
+ static unsigned int lines      = 0;
+diff -uprN dmenu-5.2/dmenu.c dmenu-5.2-AlternateRowColor/dmenu.c
+--- dmenu-5.2/dmenu.c	2022-10-05 02:36:58.000000000 +0900
++++ dmenu-5.2-AlternateRowColor/dmenu.c	2022-10-27 19:10:19.679371769 +0900
+@@ -26,7 +26,7 @@
+ #define TEXTW(X)              (drw_fontset_getwidth(drw, (X)) + lrpad)
+ 
+ /* enums */
+-enum { SchemeNorm, SchemeSel, SchemeOut, SchemeLast }; /* color schemes */
++enum { SchemeNorm, SchemeSel, SchemeOut, SchemeNorm2, SchemeLast }; /* color schemes */
+ 
+ struct item {
+ 	char *text;
+@@ -131,15 +131,18 @@ cistrstr(const char *h, const char *n)
+ }
+ 
+ static int
+-drawitem(struct item *item, int x, int y, int w)
++drawitem(struct item *item, int x, int y, int w, int n)
+ {
+ 	if (item == sel)
+ 		drw_setscheme(drw, scheme[SchemeSel]);
+ 	else if (item->out)
+ 		drw_setscheme(drw, scheme[SchemeOut]);
+-	else
+-		drw_setscheme(drw, scheme[SchemeNorm]);
+-
++	else {
++		if (n == 0)
++			drw_setscheme(drw, scheme[SchemeNorm2]);
++		else
++			drw_setscheme(drw, scheme[SchemeNorm]);
++	}
+ 	return drw_text(drw, x, y, w, bh, lrpad / 2, item->text, 0);
+ }
+ 
+@@ -169,9 +172,10 @@ drawmenu(void)
+ 	}
+ 
+ 	if (lines > 0) {
++		int i = 0;
+ 		/* draw vertical list */
+-		for (item = curr; item != next; item = item->right)
+-			drawitem(item, x, y += bh, mw - x);
++		for (item = curr; item != next; item = item->right, ++i)
++			drawitem(item, x, y += bh, mw - x, i % 2);
+ 	} else if (matches) {
+ 		/* draw horizontal list */
+ 		x += inputw;
+@@ -182,7 +186,7 @@ drawmenu(void)
+ 		}
+ 		x += w;
+ 		for (item = curr; item != next; item = item->right)
+-			x = drawitem(item, x, 0, textw_clamp(item->text, mw - x - TEXTW(">")));
++			x = drawitem(item, x, 0, textw_clamp(item->text, mw - x - TEXTW(">")), 1);
+ 		if (next) {
+ 			w = TEXTW(">");
+ 			drw_setscheme(drw, scheme[SchemeNorm]);
+@@ -711,7 +715,7 @@ static void
+ usage(void)
+ {
+ 	die("usage: dmenu [-bfiv] [-l lines] [-p prompt] [-fn font] [-m monitor]\n"
+-	    "             [-nb color] [-nf color] [-sb color] [-sf color] [-w windowid]");
++	    "             [-nb color] [-nf color] [-nb2 color] [-nf2 color] [-sb color] [-sf color] [-w windowid]");
+ }
+ 
+ int
+@@ -747,6 +751,10 @@ main(int argc, char *argv[])
+ 			colors[SchemeNorm][ColBg] = argv[++i];
+ 		else if (!strcmp(argv[i], "-nf"))  /* normal foreground color */
+ 			colors[SchemeNorm][ColFg] = argv[++i];
++		else if (!strcmp(argv[i], "-nb2"))  /* normal background color2 */
++			colors[SchemeNorm2][ColBg] = argv[++i];
++		else if (!strcmp(argv[i], "-nf2"))  /* normal foreground color2 */
++			colors[SchemeNorm2][ColFg] = argv[++i];
+ 		else if (!strcmp(argv[i], "-sb"))  /* selected background color */
+ 			colors[SchemeSel][ColBg] = argv[++i];
+ 		else if (!strcmp(argv[i], "-sf"))  /* selected foreground color */

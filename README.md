@@ -1,5 +1,8 @@
 # dmenu5.2 patches
 
+## dmenu_alternate_row_color.patch
+Add alternate row color.    
+
 ## dmenu-xim.patch
 Add XIM support.    
 
